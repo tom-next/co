@@ -19,7 +19,7 @@ const isPromise = (fn) => {
 const toThunk = (fn) => {
     if(Array.isArray(fn)) {
         let results = []
-        let pending = value.length
+        let pending = fn.length
         return (cb) => {
             let finished = false
             fn.forEach((item, index) => {
@@ -55,10 +55,16 @@ const toThunk = (fn) => {
 
 // 可以自动执行
 const runner = (gen) => {
-    // 获取迭代器
-    const it = gen()
-    // 驱动 generator 的执行
     return function(cb) {
+        const args = Array.prototype.slice.call(arguments)
+        const length = args.length
+        if(length && 'function' === typeof args[length-1]) {
+            cb = args.pop()
+            it = gen.apply(this, args)
+        } else {
+            return;
+        }
+        // 驱动 generator 的执行
         next()
         function next(err, res) {
             if (err) {
@@ -88,37 +94,30 @@ const runner = (gen) => {
 }
 
 
-const __main = function *() {
-    const sizeInfo = {
-        'file1': 0,
-        'file2': 0,
-        'file3': 0,
-    }
-    
+const __main = function *(files) {
+     // 初始化信息
+     const sizeInfo = files.reduce((info, file) => {
+        info[file] = 0
+        return info
+    }, {})
+
     try{
-        let sizes = yield Promise.all([
-            size('file1.md'),
-            size('file2.md'),
-            size('file3.md'),
-        ])
-        sizeInfo['file1'] = sizes[0]
-        sizeInfo['file2'] = sizes[1]
-        sizeInfo['file3'] = sizes[2]
-    }catch(err){
-        console.error(err)
-    }
+        const requests = files.map((file) => {
+            return size(file)
+        })
 
-    console.log(sizeInfo)
-}
+        sizes = yield requests
 
-let wrapped = runner(__main)
+        sizes.forEach((size, index) => {
+            sizeInfo[files[index]] = sizes[index]
+        })
 
-const print = (err, sizeInfo) => {
-    if(err) {
-        console.error(err)
-    } else {
-        console.dir(sizeInfo)
+        return sizeInfo;
+    } catch(error) {
+        console.error('error:', error);
     }
 }
 
-wrapped(print)
+runner(__main)(['file1.md', 'file2.md', 'file3.md'], (err, value)=>{
+    console.log('value', value);
+});

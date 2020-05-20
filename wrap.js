@@ -55,16 +55,10 @@ const toThunk = (fn) => {
 
 // 可以自动执行
 const runner = (gen) => {
+    // 获取迭代器
+    const it = gen()
+    // 驱动 generator 的执行
     return function(cb) {
-        const args = Array.prototype.slice.call(arguments)
-        const length = args.length
-        if(length && 'function' === typeof args[length-1]) {
-            cb = args.pop()
-            it = gen.apply(this, args)
-        } else {
-            return;
-        }
-        // 驱动 generator 的执行
         next()
         function next(err, res) {
             if (err) {
@@ -95,25 +89,36 @@ const runner = (gen) => {
 
 
 const __main = function *() {
-     // 初始化信息
-     const sizeInfo = files.reduce((info, file) => {
-        info[file] = 0
-        return info
-    }, {})
+    const sizeInfo = {
+        'file1': 0,
+        'file2': 0,
+        'file3': 0,
+    }
+    
     try{
-        const requests = files.map((file) => {
-            return size(file)
-        })
-        sizes = yield requests
-        sizes.forEach((size, index) => {
-            sizeInfo[files[index]] = sizes[index]
-        })
-        return sizeInfo
-    } catch(error) {
-        console.error('error:', error)
+        let sizes = yield Promise.all([
+            size('file1.md'),
+            size('file2.md'),
+            size('file3.md'),
+        ])
+        sizeInfo['file1'] = sizes[0]
+        sizeInfo['file2'] = sizes[1]
+        sizeInfo['file3'] = sizes[2]
+    }catch(err){
+        console.error(err)
+    }
+
+    console.log(sizeInfo)
+}
+
+let wrapped = runner(__main)
+
+const print = (err, sizeInfo) => {
+    if(err) {
+        console.error(err)
+    } else {
+        console.dir(sizeInfo)
     }
 }
 
-runner(__main)(['file1.md', 'file2.md', 'file3.md'], (err, value)=>{
-    console.log('value', value);
-});
+wrapped(print)
